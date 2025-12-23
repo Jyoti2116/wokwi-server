@@ -1,0 +1,75 @@
+#include <HTTPClient.h>
+#include <DHT.h>
+
+#define DHTPIN 15       // DHT22 data pin connected to GPIO 15
+#define DHTTYPE DHT22   // DHT22 sensor
+
+const char* ssid = "Wokwi-GUEST";   // Wokwi WiFi
+const char* password = "";          // No password for Wokwi WiFi
+
+const char* thingspeakApiKey = "3158D0DLIOR93U75";   // Your ThingSpeak Write API Key
+const char* thingspeakHost = "http://api.thingspeak.com/update";
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi Connected!");
+}
+
+void loop() {
+  // Read sensor values
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  // Check for sensor errors
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("❌ Failed to read from DHT22");
+    delay(2000);
+    return;
+  }
+
+  // Upload to ThingSpeak
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+    String url = String(thingspeakHost)
+               + "?api_key=" + thingspeakApiKey
+               + "&field1=" + String(temperature)
+               + "&field2=" + String(humidity);
+
+    http.begin(url);
+    int httpCode = http.GET();
+
+    if (httpCode > 0) {
+      Serial.print("✔ Data Sent. HTTP Code: ");
+      Serial.println(httpCode);
+    } else {
+      Serial.print("❌ Error Sending Data: ");
+      Serial.println(httpCode);
+    }
+
+    http.end();
+  } else {
+    Serial.println("❌ WiFi Disconnected");
+  }
+
+  // Display values in Serial Monitor
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" °C  |  Humidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+
+  delay(15000);   // ThingSpeak minimum delay = 15 seconds
+}
